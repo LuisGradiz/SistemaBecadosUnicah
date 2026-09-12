@@ -521,7 +521,7 @@ $estados = $conexion->query("
         </h2>
 
 
-        <a href="../dashboard.php">
+        <a href="../dashboard/dashboard.php">
             Inicio
         </a>
 

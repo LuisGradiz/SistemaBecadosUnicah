@@ -89,7 +89,62 @@ try {
 
 
     /* =====================================================
-       NOMBRES
+       OBTENER PERÍODO DE INICIO ACTUAL
+       
+       IMPORTANTE:
+       Se obtiene ANTES de modificar los períodos.
+       No se utiliza el año actual.
+       ===================================================== */
+
+    $periodo_inicio_numero = 0;
+    $periodo_inicio_anio = 0;
+
+    if ($id_beca_anterior > 0) {
+
+        $sql_periodo_inicio = "
+            SELECT
+                numero_periodo,
+                anio
+            FROM periodos_beca
+            WHERE id_beca = ?
+            ORDER BY
+                anio ASC,
+                numero_periodo ASC
+            LIMIT 1
+        ";
+
+        $stmt = $conexion->prepare($sql_periodo_inicio);
+
+        if (!$stmt) {
+            throw new Exception($conexion->error);
+        }
+
+        $stmt->bind_param(
+            "i",
+            $id_beca_anterior
+        );
+
+        $stmt->execute();
+
+        $res = $stmt->get_result();
+
+        if ($res->num_rows > 0) {
+
+            $periodo_inicio = $res->fetch_assoc();
+
+            $periodo_inicio_numero =
+                intval($periodo_inicio['numero_periodo']);
+
+            $periodo_inicio_anio =
+                intval($periodo_inicio['anio']);
+        }
+
+        $stmt->close();
+    }
+
+
+    /* =====================================================
+       NOMBRES DE CARRERAS
        ===================================================== */
 
     $nombre_carrera_anterior = "Sin carrera";
@@ -102,12 +157,22 @@ try {
     ";
 
     $stmt = $conexion->prepare($sql);
-    $stmt->bind_param("i", $id_carrera_anterior);
+
+    if (!$stmt) {
+        throw new Exception($conexion->error);
+    }
+
+    $stmt->bind_param(
+        "i",
+        $id_carrera_anterior
+    );
+
     $stmt->execute();
 
     $res = $stmt->get_result();
 
     if ($res->num_rows > 0) {
+
         $nombre_carrera_anterior =
             $res->fetch_assoc()['nombre_carrera'];
     }
@@ -116,12 +181,22 @@ try {
 
 
     $stmt = $conexion->prepare($sql);
-    $stmt->bind_param("i", $id_carrera);
+
+    if (!$stmt) {
+        throw new Exception($conexion->error);
+    }
+
+    $stmt->bind_param(
+        "i",
+        $id_carrera
+    );
+
     $stmt->execute();
 
     $res = $stmt->get_result();
 
     if ($res->num_rows > 0) {
+
         $nombre_carrera_nueva =
             $res->fetch_assoc()['nombre_carrera'];
     }
@@ -143,12 +218,22 @@ try {
     ";
 
     $stmt = $conexion->prepare($sql);
-    $stmt->bind_param("i", $id_tipo_anterior);
+
+    if (!$stmt) {
+        throw new Exception($conexion->error);
+    }
+
+    $stmt->bind_param(
+        "i",
+        $id_tipo_anterior
+    );
+
     $stmt->execute();
 
     $res = $stmt->get_result();
 
     if ($res->num_rows > 0) {
+
         $nombre_beca_anterior =
             $res->fetch_assoc()['nombre_beca'];
     }
@@ -157,12 +242,22 @@ try {
 
 
     $stmt = $conexion->prepare($sql);
-    $stmt->bind_param("i", $id_tipo_beca);
+
+    if (!$stmt) {
+        throw new Exception($conexion->error);
+    }
+
+    $stmt->bind_param(
+        "i",
+        $id_tipo_beca
+    );
+
     $stmt->execute();
 
     $res = $stmt->get_result();
 
     if ($res->num_rows > 0) {
+
         $nombre_beca_nueva =
             $res->fetch_assoc()['nombre_beca'];
     }
@@ -171,7 +266,7 @@ try {
 
 
     /* =====================================================
-       ACTUALIZAR BECADO
+       ACTUALIZAR DATOS DEL BECADO
        ===================================================== */
 
     $sql = "
@@ -294,8 +389,7 @@ try {
 
 
         /* ---------------------------------------------
-           COPIAR LOS PERÍODOS DE LA BECA ANTERIOR
-           A LA NUEVA BECA
+           COPIAR LOS PERÍODOS
            --------------------------------------------- */
 
         if ($id_beca_anterior > 0) {
@@ -368,12 +462,11 @@ try {
 
 
         /* ---------------------------------------------
-           LA NUEVA BECA ES LA ACTIVA
+           NUEVA BECA ACTIVA
            --------------------------------------------- */
 
         $id_beca_activa = $id_beca_nueva;
     }
-
 
     else {
 
@@ -383,15 +476,34 @@ try {
 
     /* =====================================================
        CAMBIO DE CARRERA
-       SOLO MODIFICAR PERÍODOS DE LA BECA ACTIVA
+       
+       IMPORTANTE:
+       Se conserva el período de inicio original.
+       SOLO cambia la cantidad de períodos según
+       la nueva carrera.
        ===================================================== */
 
     if ($id_carrera_anterior != $id_carrera) {
 
 
         /* ---------------------------------------------
-           OBTENER CANTIDAD DE PERÍODOS DE LA NUEVA
-           CARRERA
+           VERIFICAR QUE EXISTAN LOS PERÍODOS ANTERIORES
+           --------------------------------------------- */
+
+        if (
+            $periodo_inicio_numero <= 0 ||
+            $periodo_inicio_anio <= 0
+        ) {
+
+            throw new Exception(
+                "No se encontró el período de inicio de la beca actual."
+            );
+        }
+
+
+        /* ---------------------------------------------
+           OBTENER CANTIDAD DE PERÍODOS
+           DE LA NUEVA CARRERA
            --------------------------------------------- */
 
         $periodos_nueva_carrera = 0;
@@ -408,24 +520,40 @@ try {
             throw new Exception($conexion->error);
         }
 
-        $stmt->bind_param("i", $id_carrera);
+        $stmt->bind_param(
+            "i",
+            $id_carrera
+        );
+
         $stmt->execute();
 
         $res = $stmt->get_result();
 
-        if ($res->num_rows > 0) {
+        if ($res->num_rows === 0) {
 
-            $fila = $res->fetch_assoc();
-
-            $periodos_nueva_carrera =
-                intval($fila['periodos']);
+            throw new Exception(
+                "No se encontró la nueva carrera."
+            );
         }
+
+        $fila = $res->fetch_assoc();
+
+        $periodos_nueva_carrera =
+            intval($fila['periodos']);
 
         $stmt->close();
 
 
+        if ($periodos_nueva_carrera <= 0) {
+
+            throw new Exception(
+                "La nueva carrera no tiene períodos configurados."
+            );
+        }
+
+
         /* ---------------------------------------------
-           ELIMINAR PERÍODOS SOLAMENTE DE LA BECA ACTIVA
+           ELIMINAR PERÍODOS SOLO DE LA BECA ACTIVA
            --------------------------------------------- */
 
         if ($id_beca_activa > 0) {
@@ -455,60 +583,69 @@ try {
 
             /* -----------------------------------------
                CREAR NUEVOS PERÍODOS
+               
+               COMIENZA DESDE EL PERÍODO ORIGINAL
                ----------------------------------------- */
 
-            if ($periodos_nueva_carrera > 0) {
+            $numero_periodo =
+                $periodo_inicio_numero;
 
-                $anio_actual = date("Y");
-
-                $sql = "
-                    INSERT INTO periodos_beca
-                    (
-                        id_beca,
-                        numero_periodo,
-                        anio
-                    )
-                    VALUES (?, ?, ?)
-                ";
-
-                $stmt = $conexion->prepare($sql);
-
-                if (!$stmt) {
-                    throw new Exception($conexion->error);
-                }
+            $anio =
+                $periodo_inicio_anio;
 
 
-                /*
-                 * Se generan los períodos de la nueva
-                 * carrera comenzando desde el período 1.
-                 */
+            $sql = "
+                INSERT INTO periodos_beca
+                (
+                    id_beca,
+                    numero_periodo,
+                    anio
+                )
+                VALUES (?, ?, ?)
+            ";
 
-                for (
-                    $i = 1;
-                    $i <= $periodos_nueva_carrera;
-                    $i++
-                ) {
+            $stmt = $conexion->prepare($sql);
 
-                    $numero_periodo = (($i - 1) % 3) + 1;
-
-                    $anio =
-                        $anio_actual +
-                        intdiv(($i - 1), 3);
-
-                    $stmt->bind_param(
-                        "iii",
-                        $id_beca_activa,
-                        $numero_periodo,
-                        $anio
-                    );
-
-                    if (!$stmt->execute()) {
-                        throw new Exception($stmt->error);
-                    }
-                }
-
-                $stmt->close();
+            if (!$stmt) {
+                throw new Exception($conexion->error);
             }
+
+
+            for (
+                $i = 1;
+                $i <= $periodos_nueva_carrera;
+                $i++
+            ) {
+
+                $stmt->bind_param(
+                    "iii",
+                    $id_beca_activa,
+                    $numero_periodo,
+                    $anio
+                );
+
+                if (!$stmt->execute()) {
+                    throw new Exception($stmt->error);
+                }
+
+
+                /* -------------------------------------
+                   SIGUIENTE PERÍODO ACADÉMICO
+
+                   1 → 2 → 3 → 1 del siguiente año
+                   ------------------------------------- */
+
+                $numero_periodo++;
+
+                if ($numero_periodo > 3) {
+
+                    $numero_periodo = 1;
+
+                    $anio++;
+                }
+            }
+
+            $stmt->close();
         }
 
 
@@ -636,7 +773,7 @@ try {
 
     /* =====================================================
        SI NO CAMBIÓ LA BECA
-       ACTUALIZAR ESTADO DE LA BECA ACTIVA
+       ACTUALIZAR ESTADO Y OBSERVACIONES
        ===================================================== */
 
     if (
@@ -674,11 +811,10 @@ try {
 
 
     /* =====================================================
-       GUARDAR
+       GUARDAR CAMBIOS
        ===================================================== */
 
     $conexion->commit();
-
 
     header(
         "Location: ver_becado.php?id=" .
